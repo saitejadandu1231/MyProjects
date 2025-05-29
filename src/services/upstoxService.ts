@@ -6,14 +6,22 @@ import axios, { AxiosError } from 'axios';
 const UPSTOX_API_KEY = '11c273a8-ff5b-412e-b4da-bf686ed365af';
 const UPSTOX_API_SECRET = '9kyef0cwz0';
 
-// Get redirect URI dynamically based on current URL
+// Get redirect URI based on environment
 function getRedirectUri() {
-  // For deployed Netlify site
-  if (window.location.hostname.includes('netlify.app')) {
-    return 'https://leafy-bublanina-ae33e8.netlify.app/callback';
+  // Get the redirect URI from session storage if it exists
+  const storedUri = sessionStorage.getItem('upstox_redirect_uri');
+  if (storedUri) {
+    console.log('[Upstox] Using stored redirect URI:', storedUri);
+    return storedUri;
   }
-  // For local development
-  return `${window.location.origin}/callback`;
+
+  // Otherwise generate a new one
+  const uri = window.location.hostname.includes('netlify.app')
+    ? 'https://leafy-bublanina-ae33e8.netlify.app/callback'
+    : `${window.location.origin}/callback`;
+    
+  console.log('[Upstox] Generated redirect URI:', uri);
+  return uri;
 }
 
 // Generate a random state for CSRF protection
@@ -28,8 +36,11 @@ export function getUpstoxAuthUrl() {
   const state = generateRandomState();
   const redirectUri = getRedirectUri();
   
-  // Store state in sessionStorage for verification
+  // Store both state and redirect URI
   sessionStorage.setItem('upstox_oauth_state', state);
+  sessionStorage.setItem('upstox_redirect_uri', redirectUri);
+  
+  console.log('[Upstox] Initializing auth with:', { redirectUri, state: state.slice(0, 8) + '...' });
   
   const params = new URLSearchParams({
     response_type: 'code',
@@ -54,18 +65,25 @@ export async function fetchUpstoxToken(code: string, state?: string) {
     sessionStorage.removeItem('upstox_oauth_state');
     
     const redirectUri = getRedirectUri();
+    console.log('[Upstox] Token exchange request params:', {
+      code,
+      client_id: UPSTOX_API_KEY,
+      redirect_uri: redirectUri,
+      grant_type: 'authorization_code'
+    });
+
     const response = await axios.post(
       'https://api-v2.upstox.com/v2/login/authorization/token',
-      {
-        code,
+      new URLSearchParams({
+        code: code,
         client_id: UPSTOX_API_KEY,
         client_secret: UPSTOX_API_SECRET,
         redirect_uri: redirectUri,
         grant_type: 'authorization_code'
-      },
+      }).toString(),
       {
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/x-www-form-urlencoded'
         }
       }
     );
@@ -76,8 +94,19 @@ export async function fetchUpstoxToken(code: string, state?: string) {
     
     return response.data;
   } catch (error) {
-    if (error instanceof AxiosError && error.response?.data?.message) {
-      throw new Error(`Upstox API Error: ${error.response.data.message}`);
+    console.error('[Upstox] Token exchange error:', {
+      status: (error as AxiosError)?.response?.status,
+      data: (error as AxiosError)?.response?.data,
+      config: (error as AxiosError)?.config
+    });
+    
+    if (error instanceof AxiosError) {
+      if (error.response?.data?.message) {
+        throw new Error(`Upstox API Error: ${error.response.data.message}`);
+      }
+      if (error.response?.status === 400) {
+        throw new Error('Invalid authorization code or redirect URI');
+      }
     }
     throw error;
   }
