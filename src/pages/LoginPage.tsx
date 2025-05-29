@@ -1,7 +1,7 @@
 import React from 'react';
 import { Box, Center, Text, Button } from '@chakra-ui/react';
 import { useLocation, Navigate } from 'react-router-dom';
-import { getUpstoxAuthUrl } from '../services/upstoxService';
+import { getUpstoxAuthUrl, getEnvironmentState } from '../services/upstoxService';
 import { useAuth } from '../contexts/AuthContext';
 
 export default function LoginPage() {
@@ -17,7 +17,13 @@ export default function LoginPage() {
   const handleLogin = () => {
     try {
       const authUrl = getUpstoxAuthUrl();
-      window.location.href = authUrl;
+      if (authUrl === '#sandbox') {
+        // For sandbox mode, we directly navigate to callback
+        window.location.href = '/callback#sandbox';
+      } else {
+        // For live mode, we redirect to Upstox login
+        window.location.href = authUrl;
+      }
     } catch (error) {
       console.error('Login error:', error);
     }
@@ -32,13 +38,24 @@ export default function LoginPage() {
         <Text mb={4} color="gray.600">
           Please login with Upstox to access real-time market data and AI-powered recommendations.
         </Text>
-        {location.search.includes('sandbox=true') && (
-          <Box mb={8} p={4} bg="yellow.50" borderRadius="md" border="1px" borderColor="yellow.200">
-            <Text color="yellow.800">
-              Note: Market is currently closed. You will be logged in with sandbox mode, which provides simulated market data for testing.
-            </Text>
-          </Box>
-        )}
+        {(() => {
+          const envState = getEnvironmentState();
+          if (!envState.usingLive) {
+            return (
+              <Box mb={8} p={4} bg="yellow.50" borderRadius="md" border="1px" borderColor="yellow.200">
+                <Text color="yellow.800" fontWeight="semibold" mb={2}>
+                  Using Sandbox Mode
+                </Text>
+                <Text color="yellow.800" fontSize="sm">
+                  {envState.forcedSandbox 
+                    ? "Sandbox mode is manually enabled. Using simulated market data for testing."
+                    : "Market is currently closed. Using simulated market data for testing."}
+                </Text>
+              </Box>
+            );
+          }
+          return null;
+        })()}
         <Button
           onClick={handleLogin}
           size="lg"

@@ -26,6 +26,7 @@ import {
   SunIcon,
 } from '@chakra-ui/icons'
 import { Link as RouterLink } from 'react-router-dom'
+import { getEnvironmentState } from '../services/upstoxService'
 
 interface NavItem {
   label: string
@@ -86,6 +87,25 @@ export default function Header() {
         top={0}
         zIndex={10}
       >
+        {/* Environment Indicator */}
+        <Box
+          display={{ base: 'none', md: 'flex' }}
+          alignItems="center"
+          mr={4}
+        >
+          <Text
+            px={2}
+            py={1}
+            borderRadius="md"
+            fontSize="xs"
+            fontWeight="medium"
+            bg={useColorModeValue('green.100', 'green.800')}
+            color={useColorModeValue('green.800', 'green.100')}
+          >
+            {getEnvironmentState().usingLive ? 'LIVE' : 'SANDBOX'}
+          </Text>
+        </Box>
+
         <Flex
           flex={{ base: 1, md: 'auto' }}
           ml={{ base: -2 }}

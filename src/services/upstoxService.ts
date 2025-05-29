@@ -4,7 +4,7 @@
 import axios, { AxiosError } from 'axios';
 
 // API Configuration
-const CONFIG = {
+export const CONFIG = {
   live: {
     apiKey: '11c273a8-ff5b-412e-b4da-bf686ed365af',
     apiSecret: '9kyef0cwz0',
@@ -21,20 +21,35 @@ let currentEnvironment: 'live' | 'sandbox' = 'live';
 
 // Function to check if market is open (simplified example)
 function isMarketOpen() {
+  // Get current time in IST
   const now = new Date();
-  const hours = now.getHours();
-  const minutes = now.getMinutes();
-  const day = now.getDay();
-
+  const istOffset = 5.5 * 60; // IST is UTC+5:30
+  const utcMinutes = now.getUTCHours() * 60 + now.getUTCMinutes();
+  const istMinutes = utcMinutes + istOffset;
+  
+  // Adjust day for IST
+  let istDay = now.getUTCDay();
+  if (istMinutes >= 24 * 60) {
+    istDay = (istDay + 1) % 7;
+  }
+  
+  // Convert IST minutes to 0-1440 range
+  const timeInMinutes = istMinutes % (24 * 60);
+  
   // Market is closed on weekends (0 = Sunday, 6 = Saturday)
-  if (day === 0 || day === 6) return false;
+  if (istDay === 0 || istDay === 6) {
+    console.log('[Upstox] Market closed (Weekend)');
+    return false;
+  }
 
   // Market timing: 9:15 AM to 3:30 PM IST
-  const timeInMinutes = hours * 60 + minutes;
-  const marketOpen = 9 * 60 + 15;   // 9:15 AM
-  const marketClose = 15 * 60 + 30;  // 3:30 PM
+  const marketOpen = 9 * 60 + 15;   // 9:15 AM IST
+  const marketClose = 15 * 60 + 30;  // 3:30 PM IST
 
-  return timeInMinutes >= marketOpen && timeInMinutes <= marketClose;
+  const isOpen = timeInMinutes >= marketOpen && timeInMinutes <= marketClose;
+  console.log(`[Upstox] Market ${isOpen ? 'open' : 'closed'} (Current IST: ${Math.floor(timeInMinutes/60)}:${timeInMinutes%60})`);
+  
+  return isOpen;
 }
 
 // Function to switch between environments
@@ -131,16 +146,8 @@ export function getUpstoxAuthUrl() {
   
   // If using sandbox, return sandbox token immediately
   if (shouldUseSandbox()) {
-    // Store sandbox token in localStorage
-    const sandboxToken = {
-      access_token: CONFIG.sandbox.token,
-      expires_in: 30 * 24 * 60 * 60, // 30 days in seconds
-      token_type: 'Bearer'
-    };
-    localStorage.setItem('upstox_token', sandboxToken.access_token);
-    window.dispatchEvent(new Event('storage')); // Trigger storage event for cross-tab sync
-    
     console.log('[Upstox] Using sandbox environment');
+    // Don't set the token here, let the CallbackPage handle it
     return '#sandbox'; // Special URL that CallbackPage will recognize
   }
 
@@ -332,4 +339,18 @@ export async function fetchUpstoxInstruments(token: string) {
     }
     throw error;
   }
+}
+
+// Function to get current environment state
+export function getEnvironmentState() {
+  const marketOpen = isMarketOpen();
+  const forcedSandbox = currentEnvironment === 'sandbox';
+  const usingLive = !forcedSandbox && marketOpen;
+  
+  return {
+    marketOpen,
+    forcedSandbox,
+    usingLive,
+    currentMode: usingLive ? 'live' : 'sandbox'
+  };
 }

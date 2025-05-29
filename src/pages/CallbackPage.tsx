@@ -2,7 +2,7 @@ import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Center, VStack, Text, Button, Box, Link, useToast, Spinner } from '@chakra-ui/react';
 import { ExternalLinkIcon } from '@chakra-ui/icons';
-import { fetchUpstoxToken, getUpstoxAuthUrl } from '../services/upstoxService';
+import { CONFIG, fetchUpstoxToken, getUpstoxAuthUrl } from '../services/upstoxService';
 import { useAuth } from '../contexts/AuthContext';
 
 function ErrorDisplay({ error, onRetry }: { error: string; onRetry: () => void }) {
@@ -105,7 +105,14 @@ export default function CallbackPage() {
       try {
         // Special case for sandbox mode
         if (location.hash === '#sandbox') {
-          // Token is already set in localStorage by getUpstoxAuthUrl
+          console.log('[Auth] Setting up sandbox mode...');
+          const sandboxToken = CONFIG.sandbox.token;
+          setToken(sandboxToken);
+          
+          // Wait a moment for token to be saved
+          await new Promise(resolve => setTimeout(resolve, 500));
+          
+          // Navigate to dashboard
           navigate('/', { replace: true });
           return;
         }
