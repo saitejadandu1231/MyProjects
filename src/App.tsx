@@ -39,10 +39,14 @@ const Callback = () => {
       fetchUpstoxToken(code, state || undefined)
         .then((data) => {
           console.log('[Upstox] Token fetch success:', data);
+          // Store token and dispatch storage event for cross-tab sync
           localStorage.setItem('upstox_token', data.access_token);
-          // Use base URL for redirect
-          const baseUrl = window.location.origin + window.location.pathname.split('/callback')[0];
-          window.location.href = baseUrl || '/';
+          // Dispatch a storage event so our app knows to update
+          window.dispatchEvent(new Event('storage'));
+          // Use base URL for redirect, ensuring we keep the URL structure
+          const baseUrl = window.location.origin + window.location.pathname.replace(/\/callback.*$/, '/');
+          console.log('[Upstox] Redirecting to:', baseUrl);
+          window.location.replace(baseUrl);
         })
         .catch((err) => {
           console.error('[Upstox] Token fetch error:', err);

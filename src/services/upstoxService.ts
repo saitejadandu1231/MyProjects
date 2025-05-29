@@ -41,13 +41,14 @@ export async function fetchUpstoxToken(code: string, stateFromUrl?: string) {
     sessionStorage.removeItem('upstox_oauth_state');
   }
   try {
+    const redirectUri = getRedirectUri();
     const res = await axios.post(
       'https://api-v2.upstox.com/v2/login/authorization/token',
       {
         code,
         client_id: UPSTOX_API_KEY,
         client_secret: UPSTOX_API_SECRET,
-        redirect_uri: getRedirectUri(),
+        redirect_uri: redirectUri,
         grant_type: 'authorization_code',
       },
       { headers: { 'Content-Type': 'application/json' } }
