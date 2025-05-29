@@ -34,7 +34,7 @@ const Callback = () => {
       fetchUpstoxToken(code)
         .then((data) => {
           localStorage.setItem('upstox_token', data.access_token);
-          window.location.replace('/MyProjects/');
+          window.location.replace('/');
         })
         .catch((err) => {
           setError('Failed to authenticate with Upstox.');
@@ -76,7 +76,7 @@ function App() {
   return (
     <ChakraProvider theme={theme}>
       <StockProvider>
-        <Router basename="/MyProjects/">
+        <Router>
           <Box minH="100vh">
             <Header />
             <Box as="main" p={4}>
