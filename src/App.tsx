@@ -34,7 +34,7 @@ const Callback = () => {
       fetchUpstoxToken(code)
         .then((data) => {
           localStorage.setItem('upstox_token', data.access_token);
-          window.location.replace('/');
+          window.location.href = '/'; // Force reload so React state updates
         })
         .catch((err) => {
           setError('Failed to authenticate with Upstox.');
