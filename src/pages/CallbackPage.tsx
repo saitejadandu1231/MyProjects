@@ -99,6 +99,16 @@ export default function CallbackPage() {
   const { setToken } = useAuth();
   const toast = useToast();
   const [isProcessing, setIsProcessing] = React.useState(true);
+
+  React.useEffect(() => {
+    const processCallback = async () => {
+      try {
+        // Special case for sandbox mode
+        if (location.hash === '#sandbox') {
+          // Token is already set in localStorage by getUpstoxAuthUrl
+          navigate('/');
+          return;
+        }
   const [error, setError] = React.useState<string | null>(null);
 
   React.useEffect(() => {

@@ -129,9 +129,19 @@ export function getUpstoxAuthUrl() {
   
   console.log('[Upstox] Initializing auth with:', { redirectUri, state: state.slice(0, 8) + '...' });
   
-  // If using sandbox, don't need to do OAuth flow
+  // If using sandbox, return sandbox token immediately
   if (shouldUseSandbox()) {
-    throw new Error('Please use the sandbox token when market is closed');
+    // Store sandbox token in localStorage
+    const sandboxToken = {
+      access_token: CONFIG.sandbox.token,
+      expires_in: 30 * 24 * 60 * 60, // 30 days in seconds
+      token_type: 'Bearer'
+    };
+    localStorage.setItem('upstox_token', sandboxToken.access_token);
+    window.dispatchEvent(new Event('storage')); // Trigger storage event for cross-tab sync
+    
+    console.log('[Upstox] Using sandbox environment');
+    return '#sandbox'; // Special URL that CallbackPage will recognize
   }
 
   const params = new URLSearchParams({
