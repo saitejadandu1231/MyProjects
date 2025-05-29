@@ -39,14 +39,25 @@ const Callback = () => {
       fetchUpstoxToken(code, state || undefined)
         .then((data) => {
           console.log('[Upstox] Token fetch success:', data);
-          // Store token and dispatch storage event for cross-tab sync
+          
+          // First remove any existing token
+          localStorage.removeItem('upstox_token');
+          
+          // Store the new token
           localStorage.setItem('upstox_token', data.access_token);
-          // Dispatch a storage event so our app knows to update
+          
+          // Force a token check
           window.dispatchEvent(new Event('storage'));
-          // Use base URL for redirect, ensuring we keep the URL structure
-          const baseUrl = window.location.origin + window.location.pathname.replace(/\/callback.*$/, '/');
-          console.log('[Upstox] Redirecting to:', baseUrl);
-          window.location.replace(baseUrl);
+          
+          console.log('[Upstox] Token stored, current value:', localStorage.getItem('upstox_token'));
+          
+          // Redirect to home with full URL
+          const redirectUrl = window.location.hostname.includes('netlify.app') 
+            ? 'https://leafy-bublanina-ae33e8.netlify.app/'
+            : window.location.origin;
+            
+          console.log('[Upstox] Redirecting to:', redirectUrl);
+          window.location.replace(redirectUrl);
         })
         .catch((err) => {
           console.error('[Upstox] Token fetch error:', err);
@@ -80,24 +91,31 @@ function UpstoxLoginPrompt() {
 }
 
 function App() {
-  const [hasToken, setHasToken] = React.useState(false);
+  const [hasToken, setHasToken] = React.useState(() => {
+    const token = localStorage.getItem('upstox_token');
+    console.log('[Upstox] Initial token check:', !!token);
+    return !!token;
+  });
   
   React.useEffect(() => {
-    // Check token on mount and on storage changes
+    // Function to check token
     const checkToken = () => {
       const token = localStorage.getItem('upstox_token');
-      console.log('[Upstox] Token status:', !!token);
+      console.log('[Upstox] Token check:', token ? 'present' : 'missing');
       setHasToken(!!token);
     };
     
-    // Check token immediately
-    checkToken();
-    
-    // Listen for storage events
+    // Listen for storage events (both local and cross-tab)
     window.addEventListener('storage', checkToken);
+    
+    // Also listen for our custom event
+    const interval = setInterval(checkToken, 1000); // Check token every second for 5 seconds
+    const timeout = setTimeout(() => clearInterval(interval), 5000);
     
     return () => {
       window.removeEventListener('storage', checkToken);
+      clearInterval(interval);
+      clearTimeout(timeout);
     };
   }, []);
 

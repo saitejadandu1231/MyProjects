@@ -8,8 +8,12 @@ const UPSTOX_API_SECRET = '9kyef0cwz0';
 
 // Get redirect URI dynamically based on current URL
 function getRedirectUri() {
-  const baseUrl = window.location.origin;
-  return `${baseUrl}/callback`;
+  // For deployed Netlify site
+  if (window.location.hostname.includes('netlify.app')) {
+    return 'https://leafy-bublanina-ae33e8.netlify.app/callback';
+  }
+  // For local development
+  return `${window.location.origin}/callback`;
 }
 
 // Step 1: Redirect user to AUTH_URL for login, with dynamic state
