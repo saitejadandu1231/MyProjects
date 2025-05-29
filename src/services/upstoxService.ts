@@ -12,7 +12,7 @@ const CONFIG = {
   },
   sandbox: {
     baseUrl: 'https://api-v2.upstox.com/sandbox/ps/v2', // Sandbox base URL
-    token: process.env.VITE_UPSTOX_SANDBOX_TOKEN || '', // Default to empty string
+    token: 'eyJ0eXAiOiJKV1QiLCJrZXlfaWQiOiJza192MS4wIiwiYWxnIjoiSFMyNTYifQ.eyJzdWIiOiI3NDc3NDkiLCJqdGkiOiI2ODM4OTAzMzFhMmEwZTZmNTY1NzRiOWEiLCJpc011bHRpQ2xpZW50IjpmYWxzZSwiaXNQbHVzUGxhbiI6dHJ1ZSwiaWF0IjoxNzQ4NTM3Mzk1LCJpc3MiOiJ1ZGFwaS1nYXRld2F5LXNlcnZpY2UiLCJleHAiOjE3NTEwNjE2MDB9.y5X7IqLWo7fZabajIRtbIEEebRoV07mPEFmYvCq6Ea8'
   }
 };
 
@@ -159,7 +159,7 @@ export async function fetchUpstoxToken(code: string, state?: string): Promise<Up
     const redirectUri = getRedirectUri();
     console.log('[Upstox] Token exchange request params:', {
       code,
-      client_id: UPSTOX_API_KEY,
+      client_id: CONFIG.live.apiKey,
       redirect_uri: redirectUri,
       grant_type: 'authorization_code'
     });
