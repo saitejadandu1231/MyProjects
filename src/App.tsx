@@ -31,14 +31,15 @@ const Callback = () => {
   React.useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const code = params.get('code');
+    const state = params.get('state');
     if (code) {
-      fetchUpstoxToken(code)
+      fetchUpstoxToken(code, state || undefined)
         .then((data) => {
           localStorage.setItem('upstox_token', data.access_token);
           window.location.href = '/'; // Force reload so React state updates
         })
         .catch((err) => {
-          setError('Failed to authenticate with Upstox.');
+          setError(err.message || 'Failed to authenticate with Upstox.');
           setLoading(false);
         });
     } else {
