@@ -29,20 +29,26 @@ const Callback = () => {
   const [error, setError] = React.useState<string | null>(null);
 
   React.useEffect(() => {
+    console.log('[Upstox] Callback useEffect running');
     const params = new URLSearchParams(window.location.search);
     const code = params.get('code');
     const state = params.get('state');
+    console.log('[Upstox] URL params:', { code, state });
     if (code) {
+      console.log('[Upstox] Attempting to fetch token with code and state');
       fetchUpstoxToken(code, state || undefined)
         .then((data) => {
+          console.log('[Upstox] Token fetch success:', data);
           localStorage.setItem('upstox_token', data.access_token);
           window.location.href = '/'; // Force reload so React state updates
         })
         .catch((err) => {
+          console.error('[Upstox] Token fetch error:', err);
           setError(err.message || 'Failed to authenticate with Upstox.');
           setLoading(false);
         });
     } else {
+      console.error('[Upstox] No code found in URL.');
       setError('No code found in URL.');
       setLoading(false);
     }
