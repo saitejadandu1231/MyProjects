@@ -24,6 +24,7 @@ const defaultFilters: FilterOptions = {
 
 const Callback = () => {
   // Handles Upstox OAuth redirect
+  console.log('[Upstox] Callback component loaded');
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
 

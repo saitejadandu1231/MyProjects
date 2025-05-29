@@ -15,18 +15,18 @@ export function getUpstoxAuthUrl() {
 
 // Step 2: Exchange code for access token
 export async function fetchUpstoxToken(code: string) {
-  console.log('[Upstox] Exchanging code for token:', { code, client_id: UPSTOX_API_KEY, redirect_uri: REDIRECT_URI });
+  console.log('[Upstox] Callback component loaded, exchanging code for token:', { code, client_id: UPSTOX_API_KEY, redirect_uri: REDIRECT_URI });
   try {
+    const params = new URLSearchParams();
+    params.append('code', code);
+    params.append('client_id', UPSTOX_API_KEY);
+    params.append('client_secret', UPSTOX_API_SECRET);
+    params.append('redirect_uri', REDIRECT_URI);
+    params.append('grant_type', 'authorization_code');
     const res = await axios.post(
       'https://api-v2.upstox.com/v2/login/authorization/token',
-      {
-        code,
-        client_id: UPSTOX_API_KEY,
-        client_secret: UPSTOX_API_SECRET,
-        redirect_uri: REDIRECT_URI,
-        grant_type: 'authorization_code',
-      },
-      { headers: { 'Content-Type': 'application/json' } }
+      params,
+      { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
     );
     console.log('[Upstox] Token exchange response:', res.data);
     return res.data;
