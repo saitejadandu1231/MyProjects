@@ -1,5 +1,5 @@
 import React, { lazy, Suspense } from 'react'
-import { ChakraProvider, Box, Center, Spinner } from '@chakra-ui/react'
+import { ChakraProvider, Box, Center, Spinner, Text, Button } from '@chakra-ui/react'
 import { BrowserRouter as Router, Route, Routes } from 'react-router-dom'
 import theme from './theme'
 import Header from './components/Header'
@@ -28,50 +28,70 @@ const Callback = () => {
   const [error, setError] = React.useState<string | null>(null);
 
   React.useEffect(() => {
-    const handleCallback = async () => {
-      console.log('[Upstox] Processing callback...');
-      const params = new URLSearchParams(window.location.search);
-      const code = params.get('code');
-      const state = params.get('state');
-      
-      if (!code) {
-        console.error('[Upstox] No code found in URL.');
-        setError('No code found in URL.');
-        setLoading(false);
-        return;
-      }
-
+    const storeTokenAndRedirect = async (token: string) => {
       try {
-        console.log('[Upstox] Attempting to fetch token...');
-        const data = await fetchUpstoxToken(code, state || undefined);
-        console.log('[Upstox] Token fetch success');
-
-        // Store token
-        localStorage.setItem('upstox_token', data.access_token);
+        // Clear any existing data
+        localStorage.clear();
+        sessionStorage.clear();
+        
+        // Store new token
+        localStorage.setItem('upstox_token', token);
         
         // Verify storage
         const storedToken = localStorage.getItem('upstox_token');
+        console.log('[Upstox] Token stored:', !!storedToken);
+        
         if (!storedToken) {
-          throw new Error('Failed to store token in localStorage');
+          throw new Error('Failed to store token');
         }
         
-        // Dispatch events to update token state
-        window.dispatchEvent(new Event('storage'));
-        window.dispatchEvent(new Event('tokenUpdate'));
+        // Dispatch multiple events to ensure token state updates
+        ['storage', 'tokenUpdate'].forEach(eventName => {
+          window.dispatchEvent(new Event(eventName));
+        });
         
-        // Wait a moment for events to process
-        await new Promise(resolve => setTimeout(resolve, 500));
-
-        // Redirect to home
-        const redirectUrl = window.location.hostname.includes('netlify.app')
+        // Wait for events to propagate
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
+        // Do one final check
+        const finalCheck = localStorage.getItem('upstox_token');
+        console.log('[Upstox] Final token check:', !!finalCheck);
+        
+        // Redirect to homepage
+        const baseUrl = window.location.hostname.includes('netlify.app')
           ? 'https://leafy-bublanina-ae33e8.netlify.app'
           : window.location.origin;
+        
+        console.log('[Upstox] Redirecting to:', baseUrl);
+        window.location.replace(baseUrl);
+      } catch (err) {
+        console.error('[Upstox] Error storing token:', err);
+        throw err;
+      }
+    };
 
-        console.log('[Upstox] Redirecting to:', redirectUrl);
-        window.location.replace(redirectUrl);
+    const handleCallback = async () => {
+      try {
+        const params = new URLSearchParams(window.location.search);
+        const code = params.get('code');
+        const state = params.get('state');
+        
+        console.log('[Upstox] Processing callback with code:', !!code);
+        
+        if (!code) {
+          throw new Error('No authorization code found');
+        }
+        
+        const data = await fetchUpstoxToken(code, state || undefined);
+        
+        if (!data?.access_token) {
+          throw new Error('No access token in response');
+        }
+        
+        await storeTokenAndRedirect(data.access_token);
       } catch (err: any) {
-        console.error('[Upstox] Error:', err);
-        setError(err.message || 'Failed to authenticate with Upstox');
+        console.error('[Upstox] Callback error:', err);
+        setError(err.message || 'Authentication failed');
         setLoading(false);
       }
     };
@@ -79,8 +99,32 @@ const Callback = () => {
     handleCallback();
   }, []);
 
-  if (loading) return <Center h="50vh"><Spinner size="xl" /></Center>;
-  if (error) return <Center h="50vh">{error}</Center>;
+  if (loading) {
+    return (
+      <Center h="50vh">
+        <Box textAlign="center">
+          <Spinner size="xl" mb={4} />
+          <Text>Processing login...</Text>
+        </Box>
+      </Center>
+    );
+  }
+
+  if (error) {
+    return (
+      <Center h="50vh">
+        <Box textAlign="center" color="red.500">
+          <Text>{error}</Text>
+          <Box mt={4}>
+            <a href={getUpstoxAuthUrl()}>
+              <Button colorScheme="blue">Try Again</Button>
+            </a>
+          </Box>
+        </Box>
+      </Center>
+    );
+  }
+
   return null;
 };
 
@@ -99,49 +143,63 @@ function UpstoxLoginPrompt() {
 }
 
 function App() {
-  const [hasToken, setHasToken] = React.useState<boolean>(() => {
+  const [hasToken, setHasToken] = React.useState(() => {
     try {
       const token = localStorage.getItem('upstox_token');
-      const hasValidToken = !!token;
-      console.log('[Upstox] Initial token check:', hasValidToken);
-      return hasValidToken;
+      console.log('[Upstox] Initial token check:', !!token, 'Value:', token?.slice(0, 10));
+      return !!token;
     } catch (err) {
-      console.error('[Upstox] Error checking token:', err);
+      console.error('[Upstox] Storage access error:', err);
       return false;
     }
   });
 
   React.useEffect(() => {
+    let isMounted = true;
+    let intervalId: number | undefined;
+
     const checkToken = () => {
+      if (!isMounted) return;
+
       try {
         const token = localStorage.getItem('upstox_token');
-        const hasValidToken = !!token;
-        console.log('[Upstox] Token check:', hasValidToken ? 'present' : 'missing');
-        setHasToken(hasValidToken);
+        console.log('[Upstox] Token check:', token ? 'present' : 'missing');
+        
+        if (isMounted) {
+          setHasToken(!!token);
+        }
       } catch (err) {
-        console.error('[Upstox] Error checking token:', err);
-        setHasToken(false);
+        console.error('[Upstox] Token check error:', err);
+        if (isMounted) {
+          setHasToken(false);
+        }
       }
     };
 
-    // Check immediately
+    // Initial check
     checkToken();
 
     // Set up event listeners
     const events = ['storage', 'tokenUpdate'];
     events.forEach(event => window.addEventListener(event, checkToken));
 
-    // Poll for changes for a few seconds to catch any race conditions
-    const interval = setInterval(checkToken, 1000);
-    const cleanup = setTimeout(() => {
-      clearInterval(interval);
-      console.log('[Upstox] Stopping token check interval');
+    // Check periodically for the first 5 seconds
+    intervalId = window.setInterval(checkToken, 1000);
+    const timeoutId = window.setTimeout(() => {
+      if (intervalId) {
+        window.clearInterval(intervalId);
+        console.log('[Upstox] Stopping periodic token checks');
+      }
     }, 5000);
 
+    // Cleanup
     return () => {
+      isMounted = false;
       events.forEach(event => window.removeEventListener(event, checkToken));
-      clearInterval(interval);
-      clearTimeout(cleanup);
+      if (intervalId) {
+        window.clearInterval(intervalId);
+      }
+      window.clearTimeout(timeoutId);
     };
   }, []);
 
