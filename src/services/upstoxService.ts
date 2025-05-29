@@ -3,8 +3,8 @@
 
 import axios, { AxiosError } from 'axios';
 
-const UPSTOX_API_KEY = '11c273a8-ff5b-412e-b4da-bf686ed365af';
-const UPSTOX_API_SECRET = '9kyef0cwz0';
+const UPSTOX_API_KEY = '76987350-d35f-4aef-a6a7-2fee292d73d5';
+const UPSTOX_API_SECRET = 'vg47rgiriu';
 
 // Get redirect URI based on environment
 function getRedirectUri() {
