@@ -288,25 +288,68 @@ export async function fetchUpstoxToken(code: string, state?: string): Promise<Up
   }
 }
 
-// Fetch real-time market data (example: NSE_EQ)
+// Types for Market API responses
+export interface MarketQuote {
+  last_price: number;
+  instrument_token: string;
+  exchange: string;
+  symbol: string;
+  last_quantity: number;
+  volume: number;
+  change: number;
+  average_price: number;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+}
+
+export interface Instrument {
+  instrument_key: string;
+  exchange_token: string;
+  tradingsymbol: string;
+  name: string;
+  last_price: number;
+  expiry: string;
+  strike: number;
+  tick_size: number;
+  lot_size: number;
+  instrument_type: string;
+  option_type: string;
+  exchange: string;
+}
+
+// Fetch real-time market data
 export async function fetchUpstoxMarketQuote(token: string, instrumentKey: string) {
   try {
     const config = getCurrentConfig();
     const baseUrl = config.baseUrl;
     
-    const response = await axios.get(
-      `${baseUrl}/market-quote/ltp?instrument_key=${instrumentKey}`,
+    // First fetch the market feed auth token
+    const authResponse = await axios.get(
+      `${baseUrl}/market-quote/auth-token`,
       {
         headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json'
+          'Accept': 'application/json',
+          Authorization: `Bearer ${token}`
         }
       }
     );
+
+    // Then fetch the market data
+    const response = await axios.get(
+      `${baseUrl}/market-quote/quotes?symbol=${instrumentKey}`,
+      {
+        headers: {
+          'Accept': 'application/json',
+          Authorization: `Bearer ${token}`
+        }
+      }
+    );
+
     return response.data;
   } catch (error) {
     if (error instanceof AxiosError && error.response?.status === 401) {
-      // Token expired or invalid
       localStorage.removeItem('upstox_token');
       window.dispatchEvent(new Event('storage'));
       throw new Error('Session expired. Please login again.');
@@ -315,18 +358,83 @@ export async function fetchUpstoxMarketQuote(token: string, instrumentKey: strin
   }
 }
 
-// Fetch all instruments from Upstox (NSE_EQ)
-export async function fetchUpstoxInstruments(token: string) {
+// Fetch all instruments for a specific exchange
+export async function fetchUpstoxInstruments(token: string, exchange: string = 'NSE_EQ') {
   try {
     const config = getCurrentConfig();
     const baseUrl = config.baseUrl;
     
     const response = await axios.get(
-      `${baseUrl}/instruments`,
+      `${baseUrl}/market-quote/instruments/master`,
+      {
+        params: {
+          segment: exchange
+        },
+        headers: {
+          'Accept': 'application/json',
+          Authorization: `Bearer ${token}`
+        }
+      }
+    );
+    return response.data;
+  } catch (error) {
+    if (error instanceof AxiosError && error.response?.status === 401) {
+      localStorage.removeItem('upstox_token');
+      window.dispatchEvent(new Event('storage'));
+      throw new Error('Session expired. Please login again.');
+    }
+    
+    if (error instanceof AxiosError && error.response?.status === 404) {
+      console.error('[Upstox] Instruments API error:', error.response.data);
+      throw new Error('Unable to fetch instruments. Please try again later.');
+    }
+    throw error;
+  }
+}
+
+// Get OHLC data for a symbol
+export async function fetchOHLCData(token: string, instrumentKey: string) {
+  try {
+    const config = getCurrentConfig();
+    const baseUrl = config.baseUrl;
+    
+    const response = await axios.get(
+      `${baseUrl}/historical-candle/${instrumentKey}`,
+      {
+        params: {
+          interval: '1D', // Daily candles
+          to_date: new Date().toISOString(),
+          from_date: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString() // Last 30 days
+        },
+        headers: {
+          'Accept': 'application/json',
+          Authorization: `Bearer ${token}`
+        }
+      }
+    );
+    return response.data;
+  } catch (error) {
+    if (error instanceof AxiosError && error.response?.status === 401) {
+      localStorage.removeItem('upstox_token');
+      window.dispatchEvent(new Event('storage'));
+      throw new Error('Session expired. Please login again.');
+    }
+    throw error;
+  }
+}
+
+// Get user profile and positions
+export async function fetchUserProfile(token: string) {
+  try {
+    const config = getCurrentConfig();
+    const baseUrl = config.baseUrl;
+    
+    const response = await axios.get(
+      `${baseUrl}/user/profile`,
       {
         headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json'
+          'Accept': 'application/json',
+          Authorization: `Bearer ${token}`
         }
       }
     );
