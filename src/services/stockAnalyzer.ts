@@ -1,5 +1,5 @@
 import { StockData, HistoricalData, StockRecommendation, FilterOptions, TechnicalIndicator, ManualStockInput } from '../types';
-import { fetchStockData, fetchHistoricalData } from './apiService';
+import { fetchStockData } from './apiService';
 import * as technicalIndicators from '../utils/technicalIndicators';
 
 /**
@@ -23,9 +23,8 @@ export const analyzeStocks = async (
       const range = filters.tradeType === 'intraday' ? filters.timeRange : filters.dayRange;
       const interval = filters.tradeType === 'intraday' ? filters.timeRange : '1d';
       
-      // Fetch historical data for technical analysis
-      const historicalData = await fetchHistoricalData(stockData.symbol, range, interval);
-      
+      // No historical data from Upstox in this demo, so use empty array
+      const historicalData: HistoricalData[] = [];
       // Analyze the stock and generate recommendation
       const recommendation = analyzeStock(stockData, historicalData);
       
@@ -107,11 +106,12 @@ export const analyzeManualStockData = async (manualData: ManualStockInput): Prom
     
     // Calculate technical indicators with consideration for trade type
     // For intraday, we might use more sensitive settings
+    const validTradeType = manualData.tradeType === 'longTerm' ? 'delivery' : manualData.tradeType || 'delivery';
     const indicators = calculateTechnicalIndicators(
       prices, 
       stockData, 
       historicalData,
-      manualData.tradeType || 'delivery' // Default to delivery if not specified
+      validTradeType // Only allow 'intraday', 'swing', 'delivery'
     );
     
     // Calculate overall score and recommendation

@@ -168,4 +168,4 @@ const RecommendationCard: React.FC<RecommendationCardProps> = ({
   );
 };
 
-export defa
+export default RecommendationCard;

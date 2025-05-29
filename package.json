@@ -2,6 +2,7 @@
   "name": "smart-stock-predictor",
   "version": "0.1.0",
   "private": true,
+  "homepage": "https://saitejadandu1231.github.io/MyProjects/",
   "dependencies": {
     "@chakra-ui/icons": "^2.2.4",
     "@chakra-ui/react": "^2.10.9",
@@ -17,12 +18,14 @@
     "recharts": "^2.10.3",
     "technicalindicators": "^3.1.0"
   },
+
   "devDependencies": {
     "@types/node": "^20.10.4",
     "@types/react": "^18.2.45",
     "@types/react-dom": "^18.2.17",
     "@vitejs/plugin-react": "^4.2.1",
     "autoprefixer": "^10.4.16",
+    "gh-pages": "^6.3.0",
     "postcss": "^8.4.32",
     "tailwindcss": "^3.3.6",
     "typescript": "^5.3.3",
@@ -31,7 +34,9 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "predeploy": "npm run build",
+    "deploy": "gh-pages -d dist"
   },
   "eslintConfig": {
     "extends": [

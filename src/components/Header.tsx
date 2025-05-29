@@ -25,18 +25,21 @@ import {
   MoonIcon,
   SunIcon,
 } from '@chakra-ui/icons'
+import { Link as RouterLink } from 'react-router-dom'
 
 interface NavItem {
   label: string
   subLabel?: string
   children?: Array<NavItem>
   href?: string
+  to?: string // Add 'to' prop for react-router Link
 }
 
 const NAV_ITEMS: Array<NavItem> = [
   {
     label: 'Dashboard',
-    href: '/',
+    href: '/MyProjects/', // fallback for external link
+    to: '/', // for react-router
   },
   {
     label: 'Screeners',
@@ -160,19 +163,36 @@ const DesktopNav = () => {
         <Box key={navItem.label}>
           <Popover trigger={'hover'} placement={'bottom-start'}>
             <PopoverTrigger>
-              <Link
-                p={2}
-                href={navItem.href ?? '#'}
-                fontSize={'sm'}
-                fontWeight={500}
-                color={linkColor}
-                _hover={{
-                  textDecoration: 'none',
-                  color: linkHoverColor,
-                }}
-              >
-                {navItem.label}
-              </Link>
+              {navItem.to ? (
+                <Link
+                  as={RouterLink}
+                  to={navItem.to}
+                  p={2}
+                  fontSize={'sm'}
+                  fontWeight={500}
+                  color={linkColor}
+                  _hover={{
+                    textDecoration: 'none',
+                    color: linkHoverColor,
+                  }}
+                >
+                  {navItem.label}
+                </Link>
+              ) : (
+                <Link
+                  p={2}
+                  href={navItem.href ?? '#'}
+                  fontSize={'sm'}
+                  fontWeight={500}
+                  color={linkColor}
+                  _hover={{
+                    textDecoration: 'none',
+                    color: linkHoverColor,
+                  }}
+                >
+                  {navItem.label}
+                </Link>
+              )}
             </PopoverTrigger>
 
             {navItem.children && (
