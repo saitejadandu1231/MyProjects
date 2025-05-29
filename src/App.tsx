@@ -40,7 +40,9 @@ const Callback = () => {
         .then((data) => {
           console.log('[Upstox] Token fetch success:', data);
           localStorage.setItem('upstox_token', data.access_token);
-          window.location.href = '/'; // Force reload so React state updates
+          // Use base URL for redirect
+          const baseUrl = window.location.origin + window.location.pathname.split('/callback')[0];
+          window.location.href = baseUrl || '/';
         })
         .catch((err) => {
           console.error('[Upstox] Token fetch error:', err);
@@ -74,11 +76,25 @@ function UpstoxLoginPrompt() {
 }
 
 function App() {
-  const [hasToken, setHasToken] = React.useState(!!localStorage.getItem('upstox_token'));
+  const [hasToken, setHasToken] = React.useState(false);
+  
   React.useEffect(() => {
-    const handler = () => setHasToken(!!localStorage.getItem('upstox_token'));
-    window.addEventListener('storage', handler);
-    return () => window.removeEventListener('storage', handler);
+    // Check token on mount and on storage changes
+    const checkToken = () => {
+      const token = localStorage.getItem('upstox_token');
+      console.log('[Upstox] Token status:', !!token);
+      setHasToken(!!token);
+    };
+    
+    // Check token immediately
+    checkToken();
+    
+    // Listen for storage events
+    window.addEventListener('storage', checkToken);
+    
+    return () => {
+      window.removeEventListener('storage', checkToken);
+    };
   }, []);
 
   return (

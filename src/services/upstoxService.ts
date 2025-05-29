@@ -5,8 +5,12 @@ import axios from 'axios';
 
 const UPSTOX_API_KEY = '11c273a8-ff5b-412e-b4da-bf686ed365af';
 const UPSTOX_API_SECRET = '9kyef0cwz0';
-const REDIRECT_URI = 'https://leafy-bublanina-ae33e8.netlify.app/callback';
-const AUTH_URL = `https://api-v2.upstox.com/v2/login/authorization/dialog?response_type=code&client_id=${UPSTOX_API_KEY}&redirect_uri=${encodeURIComponent(REDIRECT_URI)}&state=xyz`;
+
+// Get redirect URI dynamically based on current URL
+function getRedirectUri() {
+  const baseUrl = window.location.origin;
+  return `${baseUrl}/callback`;
+}
 
 // Step 1: Redirect user to AUTH_URL for login, with dynamic state
 function generateRandomState(length = 16) {
@@ -21,7 +25,8 @@ function generateRandomState(length = 16) {
 export function getUpstoxAuthUrl() {
   const state = generateRandomState();
   sessionStorage.setItem('upstox_oauth_state', state);
-  const url = `https://api-v2.upstox.com/v2/login/authorization/dialog?response_type=code&client_id=${UPSTOX_API_KEY}&redirect_uri=${encodeURIComponent(REDIRECT_URI)}&state=${state}`;
+  const redirectUri = getRedirectUri();
+  const url = `https://api-v2.upstox.com/v2/login/authorization/dialog?response_type=code&client_id=${UPSTOX_API_KEY}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${state}`;
   return url;
 }
 
@@ -42,7 +47,7 @@ export async function fetchUpstoxToken(code: string, stateFromUrl?: string) {
         code,
         client_id: UPSTOX_API_KEY,
         client_secret: UPSTOX_API_SECRET,
-        redirect_uri: REDIRECT_URI,
+        redirect_uri: getRedirectUri(),
         grant_type: 'authorization_code',
       },
       { headers: { 'Content-Type': 'application/json' } }
