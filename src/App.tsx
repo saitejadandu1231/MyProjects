@@ -23,52 +23,60 @@ const defaultFilters: FilterOptions = {
 }
 
 const Callback = () => {
-  // Handles Upstox OAuth redirect
   console.log('[Upstox] Callback component loaded');
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
 
   React.useEffect(() => {
-    console.log('[Upstox] Callback useEffect running');
-    const params = new URLSearchParams(window.location.search);
-    const code = params.get('code');
-    const state = params.get('state');
-    console.log('[Upstox] URL params:', { code, state });
-    if (code) {
-      console.log('[Upstox] Attempting to fetch token with code and state');
-      fetchUpstoxToken(code, state || undefined)
-        .then((data) => {
-          console.log('[Upstox] Token fetch success:', data);
-          
-          // First remove any existing token
-          localStorage.removeItem('upstox_token');
-          
-          // Store the new token
-          localStorage.setItem('upstox_token', data.access_token);
-          
-          // Force a token check
-          window.dispatchEvent(new Event('storage'));
-          
-          console.log('[Upstox] Token stored, current value:', localStorage.getItem('upstox_token'));
-          
-          // Redirect to home with full URL
-          const redirectUrl = window.location.hostname.includes('netlify.app') 
-            ? 'https://leafy-bublanina-ae33e8.netlify.app/'
-            : window.location.origin;
-            
-          console.log('[Upstox] Redirecting to:', redirectUrl);
-          window.location.replace(redirectUrl);
-        })
-        .catch((err) => {
-          console.error('[Upstox] Token fetch error:', err);
-          setError(err.message || 'Failed to authenticate with Upstox.');
-          setLoading(false);
-        });
-    } else {
-      console.error('[Upstox] No code found in URL.');
-      setError('No code found in URL.');
-      setLoading(false);
-    }
+    const handleCallback = async () => {
+      console.log('[Upstox] Processing callback...');
+      const params = new URLSearchParams(window.location.search);
+      const code = params.get('code');
+      const state = params.get('state');
+      
+      if (!code) {
+        console.error('[Upstox] No code found in URL.');
+        setError('No code found in URL.');
+        setLoading(false);
+        return;
+      }
+
+      try {
+        console.log('[Upstox] Attempting to fetch token...');
+        const data = await fetchUpstoxToken(code, state || undefined);
+        console.log('[Upstox] Token fetch success');
+
+        // Store token
+        localStorage.setItem('upstox_token', data.access_token);
+        
+        // Verify storage
+        const storedToken = localStorage.getItem('upstox_token');
+        if (!storedToken) {
+          throw new Error('Failed to store token in localStorage');
+        }
+        
+        // Dispatch events to update token state
+        window.dispatchEvent(new Event('storage'));
+        window.dispatchEvent(new Event('tokenUpdate'));
+        
+        // Wait a moment for events to process
+        await new Promise(resolve => setTimeout(resolve, 500));
+
+        // Redirect to home
+        const redirectUrl = window.location.hostname.includes('netlify.app')
+          ? 'https://leafy-bublanina-ae33e8.netlify.app'
+          : window.location.origin;
+
+        console.log('[Upstox] Redirecting to:', redirectUrl);
+        window.location.replace(redirectUrl);
+      } catch (err: any) {
+        console.error('[Upstox] Error:', err);
+        setError(err.message || 'Failed to authenticate with Upstox');
+        setLoading(false);
+      }
+    };
+
+    handleCallback();
   }, []);
 
   if (loading) return <Center h="50vh"><Spinner size="xl" /></Center>;
@@ -91,31 +99,49 @@ function UpstoxLoginPrompt() {
 }
 
 function App() {
-  const [hasToken, setHasToken] = React.useState(() => {
-    const token = localStorage.getItem('upstox_token');
-    console.log('[Upstox] Initial token check:', !!token);
-    return !!token;
-  });
-  
-  React.useEffect(() => {
-    // Function to check token
-    const checkToken = () => {
+  const [hasToken, setHasToken] = React.useState<boolean>(() => {
+    try {
       const token = localStorage.getItem('upstox_token');
-      console.log('[Upstox] Token check:', token ? 'present' : 'missing');
-      setHasToken(!!token);
+      const hasValidToken = !!token;
+      console.log('[Upstox] Initial token check:', hasValidToken);
+      return hasValidToken;
+    } catch (err) {
+      console.error('[Upstox] Error checking token:', err);
+      return false;
+    }
+  });
+
+  React.useEffect(() => {
+    const checkToken = () => {
+      try {
+        const token = localStorage.getItem('upstox_token');
+        const hasValidToken = !!token;
+        console.log('[Upstox] Token check:', hasValidToken ? 'present' : 'missing');
+        setHasToken(hasValidToken);
+      } catch (err) {
+        console.error('[Upstox] Error checking token:', err);
+        setHasToken(false);
+      }
     };
-    
-    // Listen for storage events (both local and cross-tab)
-    window.addEventListener('storage', checkToken);
-    
-    // Also listen for our custom event
-    const interval = setInterval(checkToken, 1000); // Check token every second for 5 seconds
-    const timeout = setTimeout(() => clearInterval(interval), 5000);
-    
-    return () => {
-      window.removeEventListener('storage', checkToken);
+
+    // Check immediately
+    checkToken();
+
+    // Set up event listeners
+    const events = ['storage', 'tokenUpdate'];
+    events.forEach(event => window.addEventListener(event, checkToken));
+
+    // Poll for changes for a few seconds to catch any race conditions
+    const interval = setInterval(checkToken, 1000);
+    const cleanup = setTimeout(() => {
       clearInterval(interval);
-      clearTimeout(timeout);
+      console.log('[Upstox] Stopping token check interval');
+    }, 5000);
+
+    return () => {
+      events.forEach(event => window.removeEventListener(event, checkToken));
+      clearInterval(interval);
+      clearTimeout(cleanup);
     };
   }, []);
 
