@@ -15,18 +15,29 @@ export function getUpstoxAuthUrl() {
 
 // Step 2: Exchange code for access token
 export async function fetchUpstoxToken(code: string) {
-  const res = await axios.post(
-    'https://api-v2.upstox.com/v2/login/authorization/token',
-    {
-      code,
-      client_id: UPSTOX_API_KEY,
-      client_secret: UPSTOX_API_SECRET,
-      redirect_uri: REDIRECT_URI,
-      grant_type: 'authorization_code',
-    },
-    { headers: { 'Content-Type': 'application/json' } }
-  );
-  return res.data;
+  console.log('[Upstox] Exchanging code for token:', { code, client_id: UPSTOX_API_KEY, redirect_uri: REDIRECT_URI });
+  try {
+    const res = await axios.post(
+      'https://api-v2.upstox.com/v2/login/authorization/token',
+      {
+        code,
+        client_id: UPSTOX_API_KEY,
+        client_secret: UPSTOX_API_SECRET,
+        redirect_uri: REDIRECT_URI,
+        grant_type: 'authorization_code',
+      },
+      { headers: { 'Content-Type': 'application/json' } }
+    );
+    console.log('[Upstox] Token exchange response:', res.data);
+    return res.data;
+  } catch (err) {
+    if (axios.isAxiosError(err)) {
+      console.error('[Upstox] Token exchange error:', err.response?.data || err.message);
+    } else {
+      console.error('[Upstox] Unknown error during token exchange:', err);
+    }
+    throw err;
+  }
 }
 
 // Step 3: Fetch all NSE instruments from Upstox
