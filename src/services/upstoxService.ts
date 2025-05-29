@@ -6,6 +6,25 @@ import axios, { AxiosError } from 'axios';
 const UPSTOX_API_KEY = '76987350-d35f-4aef-a6a7-2fee292d73d5';
 const UPSTOX_API_SECRET = 'vg47rgiriu';
 
+export interface UpstoxTokenResponse {
+  access_token: string;
+  expires_in: number;
+  token_type: string;
+  refresh_token?: string;
+}
+
+export class UpstoxError extends Error {
+  constructor(
+    message: string,
+    public code?: string,
+    public status?: number,
+    public details?: any
+  ) {
+    super(message);
+    this.name = 'UpstoxError';
+  }
+}
+
 // Get redirect URI based on environment
 function getRedirectUri() {
   // Get the redirect URI from session storage if it exists
@@ -15,12 +34,24 @@ function getRedirectUri() {
     return storedUri;
   }
 
-  // Otherwise generate a new one
-  const uri = window.location.hostname.includes('netlify.app')
-    ? 'https://leafy-bublanina-ae33e8.netlify.app/callback'
-    : `${window.location.origin}/callback`;
-    
-  console.log('[Upstox] Generated redirect URI:', uri);
+  // Otherwise generate a new one based on the current environment
+  // For development, use localhost
+  if (window.location.hostname === 'localhost') {
+    const uri = 'http://localhost:5173/callback';
+    console.log('[Upstox] Using development redirect URI:', uri);
+    return uri;
+  }
+  
+  // For production Netlify deployment
+  if (window.location.hostname.includes('netlify.app')) {
+    const uri = 'https://leafy-bublanina-ae33e8.netlify.app/callback';
+    console.log('[Upstox] Using production redirect URI:', uri);
+    return uri;
+  }
+  
+  // For any other environment
+  const uri = `${window.location.origin}/callback`;
+  console.log('[Upstox] Using default redirect URI:', uri);
   return uri;
 }
 
@@ -53,12 +84,12 @@ export function getUpstoxAuthUrl() {
 }
 
 // Step 2: Exchange code for access token, with error handling
-export async function fetchUpstoxToken(code: string, state?: string) {
+export async function fetchUpstoxToken(code: string, state?: string): Promise<UpstoxTokenResponse> {
   try {
     // Verify state if provided
     const storedState = sessionStorage.getItem('upstox_oauth_state');
     if (state && (!storedState || state !== storedState)) {
-      throw new Error('Invalid state parameter. Possible CSRF attack.');
+      throw new UpstoxError('Invalid state parameter. Possible CSRF attack.', 'INVALID_STATE');
     }
     
     // Clear stored state
@@ -72,7 +103,7 @@ export async function fetchUpstoxToken(code: string, state?: string) {
       grant_type: 'authorization_code'
     });
 
-    const response = await axios.post(
+    const response = await axios.post<UpstoxTokenResponse>(
       'https://api-v2.upstox.com/v2/login/authorization/token',
       new URLSearchParams({
         code: code,
@@ -83,43 +114,90 @@ export async function fetchUpstoxToken(code: string, state?: string) {
       }).toString(),
       {
         headers: {
+          'Accept': 'application/json',
           'Content-Type': 'application/x-www-form-urlencoded'
         }
       }
     );
     
     if (!response.data?.access_token) {
-      throw new Error('No access token in response');
+      throw new UpstoxError('No access token in response', 'NO_ACCESS_TOKEN');
     }
     
     return response.data;
   } catch (error) {
+    const axiosError = error as AxiosError<any>;
+    
+    // If there's no response, it's likely a network error
+    if (!axiosError.response) {
+      throw new UpstoxError(
+        'Network error while connecting to Upstox. Please check your internet connection.',
+        'NETWORK_ERROR'
+      );
+    }
+
+    const { status, data } = axiosError.response;
+    
+    // Handle specific known error cases
+    const errorCode = data?.errorCode || data?.error_type;
+    const errorMessage = data?.message;
+    
+    if (errorCode === 'UDAPI100058' || 
+        errorMessage?.includes('No segments for these users are active')) {
+      throw new UpstoxError(
+        'API_NOT_ACTIVATED: Your Upstox account needs API access to be activated.',
+        'UDAPI100058',
+        status,
+        data
+      );
+    }
+    
+    if (errorCode === 'UDAPI100068') {
+      console.error('[Upstox] Client ID or redirect URI validation failed:', {
+        clientId: UPSTOX_API_KEY,
+        redirectUri: getRedirectUri()
+      });
+      throw new UpstoxError(
+        'Your redirect URI is not registered with this API key. Please verify your Upstox API settings.',
+        'UDAPI100068',
+        status,
+        data
+      );
+    }
+    
+    // Handle general HTTP errors
+    if (status === 401) {
+      throw new UpstoxError(
+        'Authentication failed. Please try logging in again.',
+        'AUTH_FAILED',
+        status,
+        data
+      );
+    }
+    
+    if (status === 400) {
+      throw new UpstoxError(
+        'Invalid request. Please try again.',
+        'INVALID_REQUEST',
+        status,
+        data
+      );
+    }
+    
+    // Log error details for debugging
     console.error('[Upstox] Token exchange error:', {
-      status: (error as AxiosError)?.response?.status,
-      data: (error as AxiosError)?.response?.data,
-      config: (error as AxiosError)?.config
+      status: axiosError.response?.status,
+      data: axiosError.response?.data,
+      config: axiosError.config
     });
     
-    if (error instanceof AxiosError) {
-      const errorMessage = error.response?.data?.errors?.[0]?.message || error.response?.data?.message;
-      const errorCode = error.response?.data?.errors?.[0]?.code;
-      
-      if (errorCode === 'UDAPI100058' || errorMessage?.includes('No segments for these users are active')) {
-        throw new Error('API_NOT_ACTIVATED:' + (errorMessage || 'Your Upstox API access needs to be activated'));
-      }
-      
-      if (errorMessage) {
-        throw new Error(`Upstox API Error: ${errorMessage}`);
-      }
-      
-      if (error.response?.status === 400) {
-        throw new Error('Invalid authorization code or redirect URI');
-      }
-      if (error.response?.status === 401) {
-        throw new Error('Unauthorized. Please check your API credentials.');
-      }
-    }
-    throw error;
+    // Rethrow as UpstoxError with details
+    throw new UpstoxError(
+      'Failed to authenticate with Upstox. Please try again.',
+      'TOKEN_EXCHANGE_ERROR',
+      axiosError.response?.status,
+      axiosError.response?.data
+    );
   }
 }
 
