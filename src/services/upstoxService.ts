@@ -3,8 +3,64 @@
 
 import axios, { AxiosError } from 'axios';
 
-const UPSTOX_API_KEY = '11c273a8-ff5b-412e-b4da-bf686ed365af';
-const UPSTOX_API_SECRET = '9kyef0cwz0';
+// API Configuration
+const CONFIG = {
+  live: {
+    apiKey: '11c273a8-ff5b-412e-b4da-bf686ed365af',
+    apiSecret: '9kyef0cwz0',
+    baseUrl: 'https://api-v2.upstox.com/v2',
+  },
+  sandbox: {
+    baseUrl: 'https://api-v2.upstox.com/sandbox/ps/v2', // Sandbox base URL
+    token: process.env.VITE_UPSTOX_SANDBOX_TOKEN || '', // Default to empty string
+  }
+};
+
+// Default to live environment
+let currentEnvironment: 'live' | 'sandbox' = 'live';
+
+// Function to check if market is open (simplified example)
+function isMarketOpen() {
+  const now = new Date();
+  const hours = now.getHours();
+  const minutes = now.getMinutes();
+  const day = now.getDay();
+
+  // Market is closed on weekends (0 = Sunday, 6 = Saturday)
+  if (day === 0 || day === 6) return false;
+
+  // Market timing: 9:15 AM to 3:30 PM IST
+  const timeInMinutes = hours * 60 + minutes;
+  const marketOpen = 9 * 60 + 15;   // 9:15 AM
+  const marketClose = 15 * 60 + 30;  // 3:30 PM
+
+  return timeInMinutes >= marketOpen && timeInMinutes <= marketClose;
+}
+
+// Function to switch between environments
+export function switchToSandbox() {
+  if (!CONFIG.sandbox.token) {
+    throw new Error('Sandbox token not configured. Please set VITE_UPSTOX_SANDBOX_TOKEN in your environment.');
+  }
+  currentEnvironment = 'sandbox';
+  console.log('[Upstox] Switched to sandbox environment');
+}
+
+export function switchToLive() {
+  currentEnvironment = 'live';
+  console.log('[Upstox] Switched to live environment');
+}
+
+// Function to get current environment config
+function getCurrentConfig() {
+  return CONFIG[currentEnvironment];
+}
+
+// Function to determine if we should use sandbox
+function shouldUseSandbox() {
+  // Use sandbox if explicitly set to sandbox environment or if market is closed
+  return currentEnvironment === 'sandbox' || !isMarketOpen();
+}
 
 export interface UpstoxTokenResponse {
   access_token: string;
@@ -73,9 +129,14 @@ export function getUpstoxAuthUrl() {
   
   console.log('[Upstox] Initializing auth with:', { redirectUri, state: state.slice(0, 8) + '...' });
   
+  // If using sandbox, don't need to do OAuth flow
+  if (shouldUseSandbox()) {
+    throw new Error('Please use the sandbox token when market is closed');
+  }
+
   const params = new URLSearchParams({
     response_type: 'code',
-    client_id: UPSTOX_API_KEY,
+    client_id: CONFIG.live.apiKey,
     redirect_uri: redirectUri,
     state: state
   });
@@ -103,12 +164,21 @@ export async function fetchUpstoxToken(code: string, state?: string): Promise<Up
       grant_type: 'authorization_code'
     });
 
+    // If in sandbox mode, return sandbox token
+    if (shouldUseSandbox()) {
+      return {
+        access_token: CONFIG.sandbox.token,
+        expires_in: 30 * 24 * 60 * 60, // 30 days in seconds
+        token_type: 'Bearer'
+      };
+    }
+
     const response = await axios.post<UpstoxTokenResponse>(
-      'https://api-v2.upstox.com/v2/login/authorization/token',
+      `${CONFIG.live.baseUrl}/login/authorization/token`,
       new URLSearchParams({
         code: code,
-        client_id: UPSTOX_API_KEY,
-        client_secret: UPSTOX_API_SECRET,
+        client_id: CONFIG.live.apiKey,
+        client_secret: CONFIG.live.apiSecret,
         redirect_uri: redirectUri,
         grant_type: 'authorization_code'
       }).toString(),
@@ -154,7 +224,7 @@ export async function fetchUpstoxToken(code: string, state?: string): Promise<Up
     
     if (errorCode === 'UDAPI100068') {
       console.error('[Upstox] Client ID or redirect URI validation failed:', {
-        clientId: UPSTOX_API_KEY,
+        clientId: CONFIG.live.apiKey,
         redirectUri: getRedirectUri()
       });
       throw new UpstoxError(
@@ -204,8 +274,11 @@ export async function fetchUpstoxToken(code: string, state?: string): Promise<Up
 // Fetch real-time market data (example: NSE_EQ)
 export async function fetchUpstoxMarketQuote(token: string, instrumentKey: string) {
   try {
+    const config = getCurrentConfig();
+    const baseUrl = config.baseUrl;
+    
     const response = await axios.get(
-      `https://api-v2.upstox.com/v2/market-quote/ltp?instrument_key=${instrumentKey}`,
+      `${baseUrl}/market-quote/ltp?instrument_key=${instrumentKey}`,
       {
         headers: {
           Authorization: `Bearer ${token}`,
@@ -228,8 +301,11 @@ export async function fetchUpstoxMarketQuote(token: string, instrumentKey: strin
 // Fetch all instruments from Upstox (NSE_EQ)
 export async function fetchUpstoxInstruments(token: string) {
   try {
+    const config = getCurrentConfig();
+    const baseUrl = config.baseUrl;
+    
     const response = await axios.get(
-      'https://api-v2.upstox.com/v2/instruments',
+      `${baseUrl}/instruments`,
       {
         headers: {
           Authorization: `Bearer ${token}`,
