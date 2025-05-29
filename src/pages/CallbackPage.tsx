@@ -97,23 +97,19 @@ export default function CallbackPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const { setToken } = useAuth();
-  const toast = useToast();
   const [isProcessing, setIsProcessing] = React.useState(true);
-
-  React.useEffect(() => {
-    const processCallback = async () => {
-      try {
-        // Special case for sandbox mode
-        if (location.hash === '#sandbox') {
-          // Token is already set in localStorage by getUpstoxAuthUrl
-          navigate('/');
-          return;
-        }
   const [error, setError] = React.useState<string | null>(null);
 
   React.useEffect(() => {
     const handleCallback = async () => {
       try {
+        // Special case for sandbox mode
+        if (location.hash === '#sandbox') {
+          // Token is already set in localStorage by getUpstoxAuthUrl
+          navigate('/', { replace: true });
+          return;
+        }
+        // Get code and state from URL
         const params = new URLSearchParams(location.search);
         const code = params.get('code');
         const state = params.get('state');
@@ -136,9 +132,6 @@ export default function CallbackPage() {
         // Set the new token
         setToken(data.access_token);
         
-        // Wait a moment for token to be saved
-        await new Promise(resolve => setTimeout(resolve, 500));
-        
         // Success! Redirect to home
         navigate('/', { replace: true });
       } catch (error: any) {
@@ -152,6 +145,7 @@ export default function CallbackPage() {
     handleCallback();
   }, [location, navigate, setToken]);
 
+  // If there's an error, show error display
   if (error) {
     return (
       <ErrorDisplay 
@@ -163,6 +157,7 @@ export default function CallbackPage() {
     );
   }
 
+  // Show loading state
   return (
     <Center h="60vh">
       <VStack spacing={6}>
