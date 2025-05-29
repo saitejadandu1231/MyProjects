@@ -65,3 +65,11 @@ export async function fetchUpstoxMarketQuote(token: string, instrumentKey: strin
   );
   return res.data;
 }
+
+// Fetch all instruments from Upstox (NSE_EQ)
+export async function fetchUpstoxInstruments(token: string) {
+  const res = await axios.get('https://api-v2.upstox.com/v2/instruments', {
+    headers: { Authorization: `Bearer ${token}` }
+  });
+  return res.data;
+}
