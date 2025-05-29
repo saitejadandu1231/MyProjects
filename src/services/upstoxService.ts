@@ -5,7 +5,7 @@ import axios from 'axios';
 
 const UPSTOX_API_KEY = '11c273a8-ff5b-412e-b4da-bf686ed365af';
 const UPSTOX_API_SECRET = '9kyef0cwz0';
-const REDIRECT_URI = 'https://YOUR_NETLIFY_SITE.netlify.app/callback';
+const REDIRECT_URI = 'https://leafy-bublanina-ae33e8.netlify.app/callback';
 const AUTH_URL = `https://api-v2.upstox.com/v2/login/authorization/dialog?response_type=code&client_id=${UPSTOX_API_KEY}&redirect_uri=${encodeURIComponent(REDIRECT_URI)}&state=xyz`;
 
 // Step 1: Redirect user to AUTH_URL for login
