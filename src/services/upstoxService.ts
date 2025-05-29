@@ -101,11 +101,22 @@ export async function fetchUpstoxToken(code: string, state?: string) {
     });
     
     if (error instanceof AxiosError) {
-      if (error.response?.data?.message) {
-        throw new Error(`Upstox API Error: ${error.response.data.message}`);
+      const errorMessage = error.response?.data?.errors?.[0]?.message || error.response?.data?.message;
+      const errorCode = error.response?.data?.errors?.[0]?.code;
+      
+      if (errorCode === 'UDAPI100058' || errorMessage?.includes('No segments for these users are active')) {
+        throw new Error('API_NOT_ACTIVATED:' + (errorMessage || 'Your Upstox API access needs to be activated'));
       }
+      
+      if (errorMessage) {
+        throw new Error(`Upstox API Error: ${errorMessage}`);
+      }
+      
       if (error.response?.status === 400) {
         throw new Error('Invalid authorization code or redirect URI');
+      }
+      if (error.response?.status === 401) {
+        throw new Error('Unauthorized. Please check your API credentials.');
       }
     }
     throw error;
