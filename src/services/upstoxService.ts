@@ -1,16 +1,3 @@
-// API Configuration
-const CONFIG = {
-  live: {
-    apiKey: '11c273a8-ff5b-412e-b4da-bf686ed365af',
-    apiSecret: '9kyef0cwz0',
-    baseUrl: 'https://api-v2.upstox.com/v2',
-    authUrl: 'https://api-v2.upstox.com/v2/login/authorization/dialog',
-  },
-  sandbox: {
-    baseUrl: 'https://api-sandbox.upstox.com/v2',  // Correct sandbox URL
-    token: 'eyJ0eXAiOiJKV1QiLCJrZXlfaWQiOiJza192MS4wIiwiYWxnIjoiSFMyNTYifQ.eyJzdWIiOiI3NDc3NDkiLCJqdGkiOiI2ODM4OTAzMzFhMmEwZTZmNTY1NzRiOWEiLCJpc011bHRpQ2xpZW50IjpmYWxzZSwiaXNQbHVzUGxhbiI6dHJ1ZSwiaWF0IjoxNzQ4NTM3Mzk1LCJpc3MiOiJ1ZGFwaS1nYXRld2F5LXNlcnZpY2UiLCJleHAiOjE3NTEwNjE2MDB9.y5X7IqLWo7fZabajIRtbIEEebRoV07mPEFmYvCq6Ea8'
-  }
-};egration service
 // Handles OAuth, token storage, and real-time market data fetch
 
 import axios, { AxiosError } from 'axios';
