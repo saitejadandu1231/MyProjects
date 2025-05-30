@@ -36,10 +36,8 @@ const reformatToStandardSymbol = (symbol: string): string => {
  * Fetch stock symbols from the Indian market
  */
 export const getIndianStockSymbols = async (): Promise<string[]> => {
-  const token = localStorage.getItem('upstox_token');
-  if (!token) throw new Error('Upstox token not found. Please login.');
   if (upstoxInstrumentsCache.length === 0) {
-    const data = await fetchUpstoxInstruments(token);
+    const data = await fetchUpstoxInstruments();
     upstoxInstrumentsCache = data.data;
   }
   // Return all NSE_EQ symbols in Upstox format (e.g., RELIANCE.NS)
@@ -54,11 +52,9 @@ export const getIndianStockSymbols = async (): Promise<string[]> => {
 // Replace fetchStockData to use Upstox API for real-time data
 export const fetchStockData = async (symbol: string): Promise<StockData> => {
   try {
-    const token = localStorage.getItem('upstox_token');
-    if (!token) throw new Error('Upstox token not found. Please login.');
     const instrumentKey = getUpstoxInstrumentKey(symbol);
     if (!instrumentKey) throw new Error('Instrument key not found for symbol: ' + symbol);
-    const data = await fetchUpstoxMarketQuote(token, instrumentKey);
+    const data = await fetchUpstoxMarketQuote(instrumentKey);
     const ltp = data.data[instrumentKey]?.ltp;
     const open = data.data[instrumentKey]?.ohlc.open;
     const high = data.data[instrumentKey]?.ohlc.high;

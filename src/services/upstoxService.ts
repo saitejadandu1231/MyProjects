@@ -1,4 +1,16 @@
-// Upstox API integration service
+// API Configuration
+const CONFIG = {
+  live: {
+    apiKey: '11c273a8-ff5b-412e-b4da-bf686ed365af',
+    apiSecret: '9kyef0cwz0',
+    baseUrl: 'https://api-v2.upstox.com/v2',
+    authUrl: 'https://api-v2.upstox.com/v2/login/authorization/dialog',
+  },
+  sandbox: {
+    baseUrl: 'https://api-sandbox.upstox.com/v2',  // Correct sandbox URL
+    token: 'eyJ0eXAiOiJKV1QiLCJrZXlfaWQiOiJza192MS4wIiwiYWxnIjoiSFMyNTYifQ.eyJzdWIiOiI3NDc3NDkiLCJqdGkiOiI2ODM4OTAzMzFhMmEwZTZmNTY1NzRiOWEiLCJpc011bHRpQ2xpZW50IjpmYWxzZSwiaXNQbHVzUGxhbiI6dHJ1ZSwiaWF0IjoxNzQ4NTM3Mzk1LCJpc3MiOiJ1ZGFwaS1nYXRld2F5LXNlcnZpY2UiLCJleHAiOjE3NTEwNjE2MDB9.y5X7IqLWo7fZabajIRtbIEEebRoV07mPEFmYvCq6Ea8'
+  }
+};egration service
 // Handles OAuth, token storage, and real-time market data fetch
 
 import axios, { AxiosError } from 'axios';
@@ -9,9 +21,11 @@ export const CONFIG = {
     apiKey: '11c273a8-ff5b-412e-b4da-bf686ed365af',
     apiSecret: '9kyef0cwz0',
     baseUrl: 'https://api-v2.upstox.com/v2',
+    authUrl: 'https://api-v2.upstox.com/v2/login/authorization/dialog',
   },
   sandbox: {
-    baseUrl: 'https://api-v2.upstox.com/sandbox/ps/v2', // Sandbox base URL
+    baseUrl: 'https://api-sandbox.upstox.com/v2',
+    authUrl: 'https://api-sandbox.upstox.com/v2/login/authorization/dialog',  // Correct sandbox URL
     token: 'eyJ0eXAiOiJKV1QiLCJrZXlfaWQiOiJza192MS4wIiwiYWxnIjoiSFMyNTYifQ.eyJzdWIiOiI3NDc3NDkiLCJqdGkiOiI2ODM4OTAzMzFhMmEwZTZmNTY1NzRiOWEiLCJpc011bHRpQ2xpZW50IjpmYWxzZSwiaXNQbHVzUGxhbiI6dHJ1ZSwiaWF0IjoxNzQ4NTM3Mzk1LCJpc3MiOiJ1ZGFwaS1nYXRld2F5LXNlcnZpY2UiLCJleHAiOjE3NTEwNjE2MDB9.y5X7IqLWo7fZabajIRtbIEEebRoV07mPEFmYvCq6Ea8'
   }
 };
@@ -170,8 +184,10 @@ export async function fetchUpstoxToken(code: string, state?: string): Promise<Up
       throw new UpstoxError('Invalid state parameter. Possible CSRF attack.', 'INVALID_STATE');
     }
     
-    // Clear stored state
+    // Clear stored state and any existing tokens
     sessionStorage.removeItem('upstox_oauth_state');
+    localStorage.removeItem('upstox_token');
+    localStorage.removeItem('upstox_token_expiry');
     
     const redirectUri = getRedirectUri();
     console.log('[Upstox] Token exchange request params:', {
@@ -209,6 +225,12 @@ export async function fetchUpstoxToken(code: string, state?: string): Promise<Up
     
     if (!response.data?.access_token) {
       throw new UpstoxError('No access token in response', 'NO_ACCESS_TOKEN');
+    }
+    
+    // For live tokens, store the expiry time
+    if (!shouldUseSandbox()) {
+      const expiryTime = Date.now() + (response.data.expires_in * 1000);
+      localStorage.setItem('upstox_token_expiry', expiryTime.toString());
     }
     
     return response.data;
@@ -319,36 +341,65 @@ export interface Instrument {
   exchange: string;
 }
 
+// Helper function to get token from localStorage
+function getStoredToken(): string | null {
+  return localStorage.getItem('upstox_token');
+}
+
+// Get headers with token validation
+async function getValidatedHeaders() {
+  const token = getStoredToken();
+  if (!token) {
+    throw new UpstoxError('No valid token available. Please login again.', 'INVALID_TOKEN');
+  }
+  
+  // For sandbox tokens, skip expiry check
+  if (token.startsWith('eyJ0') && token.length > 500) {
+    return {
+      'Accept': 'application/json',
+      'Authorization': `Bearer ${token}`
+    };
+  }
+  
+  // Check token expiry
+  const expiry = localStorage.getItem('upstox_token_expiry');
+  if (!expiry || parseInt(expiry) <= Date.now()) {
+    localStorage.removeItem('upstox_token');
+    localStorage.removeItem('upstox_token_expiry');
+    window.dispatchEvent(new Event('storage'));
+    throw new UpstoxError('Token expired. Please login again.', 'TOKEN_EXPIRED');
+  }
+  
+  return {
+    'Accept': 'application/json',
+    'Authorization': `Bearer ${token}`
+  };
+}
+
 // Fetch real-time market data
-export async function fetchUpstoxMarketQuote(token: string, instrumentKey: string) {
+export async function fetchUpstoxMarketQuote(instrumentKey: string) {
   try {
     const config = getCurrentConfig();
     const baseUrl = config.baseUrl;
+    const headers = await getValidatedHeaders();
     
     // First fetch the market feed auth token
     const authResponse = await axios.get(
       `${baseUrl}/market-quote/auth-token`,
-      {
-        headers: {
-          'Accept': 'application/json',
-          Authorization: `Bearer ${token}`
-        }
-      }
+      { headers }
     );
 
     // Then fetch the market data
     const response = await axios.get(
       `${baseUrl}/market-quote/quotes?symbol=${instrumentKey}`,
-      {
-        headers: {
-          'Accept': 'application/json',
-          Authorization: `Bearer ${token}`
-        }
-      }
+      { headers }
     );
 
     return response.data;
   } catch (error) {
+    if (error instanceof UpstoxError) {
+      throw error; // Re-throw validation errors
+    }
     if (error instanceof AxiosError && error.response?.status === 401) {
       localStorage.removeItem('upstox_token');
       window.dispatchEvent(new Event('storage'));
@@ -359,10 +410,11 @@ export async function fetchUpstoxMarketQuote(token: string, instrumentKey: strin
 }
 
 // Fetch all instruments for a specific exchange
-export async function fetchUpstoxInstruments(token: string, exchange: string = 'NSE_EQ') {
+export async function fetchUpstoxInstruments(exchange: string = 'NSE_EQ') {
   try {
     const config = getCurrentConfig();
     const baseUrl = config.baseUrl;
+    const headers = await getValidatedHeaders();
     
     const response = await axios.get(
       `${baseUrl}/market-quote/instruments/master`,
@@ -370,10 +422,7 @@ export async function fetchUpstoxInstruments(token: string, exchange: string = '
         params: {
           segment: exchange
         },
-        headers: {
-          'Accept': 'application/json',
-          Authorization: `Bearer ${token}`
-        }
+        headers
       }
     );
     return response.data;
@@ -393,10 +442,11 @@ export async function fetchUpstoxInstruments(token: string, exchange: string = '
 }
 
 // Get OHLC data for a symbol
-export async function fetchOHLCData(token: string, instrumentKey: string) {
+export async function fetchOHLCData(instrumentKey: string) {
   try {
     const config = getCurrentConfig();
     const baseUrl = config.baseUrl;
+    const headers = await getValidatedHeaders();
     
     const response = await axios.get(
       `${baseUrl}/historical-candle/${instrumentKey}`,
@@ -406,10 +456,7 @@ export async function fetchOHLCData(token: string, instrumentKey: string) {
           to_date: new Date().toISOString(),
           from_date: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString() // Last 30 days
         },
-        headers: {
-          'Accept': 'application/json',
-          Authorization: `Bearer ${token}`
-        }
+        headers
       }
     );
     return response.data;
@@ -424,19 +471,15 @@ export async function fetchOHLCData(token: string, instrumentKey: string) {
 }
 
 // Get user profile and positions
-export async function fetchUserProfile(token: string) {
+export async function fetchUserProfile() {
   try {
     const config = getCurrentConfig();
     const baseUrl = config.baseUrl;
+    const headers = await getValidatedHeaders();
     
     const response = await axios.get(
       `${baseUrl}/user/profile`,
-      {
-        headers: {
-          'Accept': 'application/json',
-          Authorization: `Bearer ${token}`
-        }
-      }
+      { headers }
     );
     return response.data;
   } catch (error) {
